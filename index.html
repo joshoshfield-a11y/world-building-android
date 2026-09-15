@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World — Ocean · Island · Sky</title>
+<style>
+	:root { color-scheme: dark; }
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	html, body { height: 100%; overflow: hidden; background: #05131c; }
+	body { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+	canvas { display: block; }
+
+	#hud {
+		position: fixed; left: 14px; bottom: 12px; z-index: 5;
+		font-size: 11px; line-height: 1.7; color: #9fc3d4;
+		text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none;
+		white-space: nowrap;
+	}
+	/* The door prompt. Centred and low, where a third-person camera puts the
+	   ground the figure is standing on — the corner HUD is a legend you read
+	   once, this is a thing you have to notice while walking. */
+	#prompt {
+		position: fixed; left: 50%; bottom: 76px; z-index: 6;
+		transform: translateX(-50%) translateY(6px);
+		padding: 6px 14px; border-radius: 4px;
+		background: rgba(4, 14, 20, .58); border: 1px solid rgba(159,195,212,.22);
+		font-size: 12px; letter-spacing: .04em; color: #d9ecf4;
+		text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none;
+		opacity: 0; transition: opacity .16s ease, transform .16s ease;
+	}
+	#prompt.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+	#title {
+		position: fixed; left: 14px; top: 12px; z-index: 5;
+		color: #d9ecf4; text-shadow: 0 1px 4px rgba(0,0,0,.6);
+	}
+	#title h1 { font-size: 14px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+	#title p { font-size: 11px; color: #86aabb; margin-top: 3px; }
+	#title a { color: #a8d6ea; text-decoration: none; pointer-events: auto; }
+
+	/* above lil-gui, which parks itself at 1001 — a settings panel you can click
+	   while the world is still being built is not a loading screen */
+	#overlay {
+		position: fixed; inset: 0; z-index: 1200; display: none;
+		place-content: center; text-align: center; gap: 10px;
+		background: rgba(4, 14, 20, .94); color: #cfe6f0; padding: 40px;
+	}
+	#overlay h1 { font-size: 18px; letter-spacing: .08em; }
+	#overlay p { font-size: 12px; line-height: 1.8; color: #8fb4c6; max-width: 640px; }
+
+	/* the boot screen — it stays up until the world is genuinely finished,
+	   including the wood and the house, so nothing is ever shown mid-build */
+	#boot {
+		position: fixed; inset: 0; z-index: 1100; display: grid;
+		place-content: center; justify-items: center; gap: 16px;
+		background: #05131c; color: #cfe6f0;
+		transition: opacity .5s ease; opacity: 1;
+	}
+	#boot.done { opacity: 0; pointer-events: none; }
+	#boot h1 { font-size: 15px; font-weight: 600; letter-spacing: .34em; color: #d9ecf4; }
+	#boot-stage {
+		font-size: 11px; color: #7ea6ba; letter-spacing: .04em;
+		min-height: 14px; text-align: center;
+	}
+	#boot-bar {
+		position: relative; width: 260px; height: 2px;
+		background: rgba(160, 200, 220, .16); overflow: hidden;
+	}
+	#boot-bar i {
+		display: block; height: 100%; width: 0;
+		background: #7fc0e2; transition: width .28s ease;
+	}
+	/* A sweep that keeps moving through the long stages. It animates `transform`
+	   and nothing else on purpose: that runs on the compositor, so it carries on
+	   while the main thread is a second deep in building the house — which is
+	   the one moment the page has to look alive rather than hung. Anything that
+	   animates width, or background-position, would freeze with it. */
+	#boot-bar::after {
+		content: ''; position: absolute; inset: 0; width: 40%;
+		background: linear-gradient(90deg, transparent, rgba(127, 192, 226, .85), transparent);
+		animation: boot-sweep 1.25s ease-in-out infinite;
+		will-change: transform;
+	}
+	@keyframes boot-sweep {
+		from { transform: translateX(-110%); }
+		to   { transform: translateX(360%); }
+	}
+
+	/* translucent glass debug panel */
+	.lil-gui {
+		--background-color: rgba(9, 18, 25, 0.42);
+		--title-background-color: rgba(12, 24, 33, 0.5);
+		--widget-color: rgba(255, 255, 255, 0.09);
+		--hover-color: rgba(255, 255, 255, 0.16);
+		--focus-color: rgba(255, 255, 255, 0.22);
+		--number-color: #85cbe6;
+		--text-color: #d5e6ee;
+		--title-text-color: #e6f2f8;
+	}
+	.lil-gui.root { backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1); }
+	.lil-gui.root > .children { background: transparent; }
+</style>
+</head>
+<body>
+<template id="app-layout">
+
+<div id="title">
+	<h1>World</h1>
+	<p>ocean · land · day-night sky — toggle layers in the panel ·
+	WASD walk · shift run · space jump · <b>F</b> opens a door · X cheer ·
+	<b>V</b> cycles third person / first person / free flight —
+	move the mouse to look, click the world to keep turning, <b>esc</b> to use the mouse ·
+	<a href="./hub.html">single scenes</a></p>
+</div>
+<div id="hud">booting…</div>
+<div id="prompt"></div>
+<div id="overlay"></div>
+<div id="boot">
+	<h1>WORLD</h1>
+	<div id="boot-stage">starting…</div>
+	<div id="boot-bar"><i></i></div>
+</div>
+
+<script type="importmap">
+{
+	"imports": {
+		"three": "./vendor/three.webgpu.min.js",
+		"three/webgpu": "./vendor/three.webgpu.min.js",
+		"three/tsl": "./vendor/three.tsl.min.js",
+		"lil-gui": "./vendor/lil-gui.esm.min.js"
+	}
+}
+</script>
+</template>
+<div id="root"></div>
+<script type="module" src="/src/world.jsx"></script>
+
+</body>
+</html>

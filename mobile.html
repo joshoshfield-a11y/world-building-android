@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover: draw under notches; user-scalable=no: pinch is the look
+     control, not a page-zoom gesture -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05131c">
+<title>World — mobile</title>
+<style>
+	:root {
+		color-scheme: dark;
+		/* device safe areas — notch/home-indicator insets as CSS env() */
+		--safe-t: env(safe-area-inset-top, 0px);
+		--safe-b: env(safe-area-inset-bottom, 0px);
+		--safe-l: env(safe-area-inset-left, 0px);
+		--safe-r: env(safe-area-inset-right, 0px);
+	}
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	html, body { height: 100%; overflow: hidden; background: #05131c; overscroll-behavior: none; }
+	body {
+		font-family: ui-monospace, "SF Mono", Menlo, monospace;
+		touch-action: none;                 /* we own every gesture */
+		user-select: none; -webkit-user-select: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+	canvas { display: block; }
+
+	/* ---- HUD (mirrors desktop, inset by safe areas) ---- */
+	#hud {
+		position: fixed; left: calc(14px + var(--safe-l)); bottom: calc(118px + var(--safe-b));
+		z-index: 5; font-size: 10px; line-height: 1.7; color: #9fc3d4;
+		text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none; white-space: nowrap;
+	}
+	#prompt {
+		position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); z-index: 6;
+		transform: translateX(-50%) translateY(6px);
+		padding: 8px 16px; border-radius: 6px;
+		background: rgba(4, 14, 20, .62); border: 1px solid rgba(159,195,212,.25);
+		font-size: 13px; letter-spacing: .04em; color: #d9ecf4;
+		text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none;
+		opacity: 0; transition: opacity .16s ease, transform .16s ease;
+	}
+	#prompt.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+	#title {
+		position: fixed; left: calc(14px + var(--safe-l)); top: calc(10px + var(--safe-t));
+		z-index: 5; color: #d9ecf4; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none;
+	}
+	#title h1 { font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+	#title p { font-size: 10px; color: #86aabb; margin-top: 3px; }
+
+	/* ---- virtual joystick (left half) ---- */
+	#joy {
+		position: fixed; z-index: 10;
+		left: calc(26px + var(--safe-l)); bottom: calc(26px + var(--safe-b));
+		width: 128px; height: 128px; border-radius: 50%;
+		background: rgba(10, 22, 30, .38); border: 1px solid rgba(159,195,212,.28);
+		backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+		touch-action: none;
+	}
+	#joy-knob {
+		position: absolute; left: 50%; top: 50%; width: 52px; height: 52px;
+		border-radius: 50%; transform: translate(-50%, -50%);
+		background: rgba(127, 192, 226, .32); border: 1px solid rgba(159,195,212,.5);
+		will-change: transform;
+	}
+	#joy-label {
+		position: absolute; inset: 0; display: grid; place-content: center;
+		font-size: 9px; color: rgba(159,195,212,.55); letter-spacing: .1em; pointer-events: none;
+	}
+
+	/* ---- action buttons (right column, above safe area) ---- */
+	.btns { position: fixed; right: calc(18px + var(--safe-r)); bottom: calc(26px + var(--safe-b));
+		z-index: 10; display: flex; flex-direction: column; gap: 12px; }
+	.abtn {
+		width: 62px; height: 62px; border-radius: 50%;
+		background: rgba(10, 22, 30, .42); border: 1px solid rgba(159,195,212,.3);
+		backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+		color: #cfe6f0; font-size: 10px; letter-spacing: .06em;
+		display: grid; place-content: center; text-align: center;
+		touch-action: none; font-family: inherit;
+	}
+	.abtn:active { background: rgba(127, 192, 226, .4); }
+	.abtn.small { width: 48px; height: 48px; font-size: 9px; align-self: flex-end; }
+
+	/* look area hint — the whole right half is the camera; the ring is just a
+	   visual anchor where a thumb naturally lands */
+	#look-ring {
+		position: fixed; z-index: 4; right: calc(110px + var(--safe-r));
+		bottom: calc(96px + var(--safe-b)); width: 88px; height: 88px; border-radius: 50%;
+		border: 1px dashed rgba(159,195,212,.22); pointer-events: none;
+	}
+
+	/* ---- panel toggle: lil-gui is desktop-dense; on mobile it starts hidden
+	   behind this button so the screen is world-first ---- */
+	#panel-btn {
+		position: fixed; top: calc(10px + var(--safe-t)); right: calc(14px + var(--safe-r));
+		z-index: 1002; width: 40px; height: 40px; border-radius: 8px;
+		background: rgba(10, 22, 30, .5); border: 1px solid rgba(159,195,212,.3);
+		color: #cfe6f0; font-size: 15px; display: grid; place-content: center;
+		backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-family: inherit;
+	}
+	/* when the panel is open it should not swallow the world — cap its height
+	   and let it scroll, and keep it under the toggle button */
+	.lil-gui.root { max-height: 62vh; overflow-y: auto; }
+	.lil-gui.root.hidden { display: none; }
+
+	/* ---- boot (same promise as desktop: stays up until the house is built) ---- */
+	#boot {
+		position: fixed; inset: 0; z-index: 1100; display: grid;
+		place-content: center; justify-items: center; gap: 16px;
+		background: #05131c; color: #cfe6f0;
+		transition: opacity .5s ease; opacity: 1;
+		padding: calc(20px + var(--safe-t)) 20px calc(20px + var(--safe-b));
+	}
+	#boot.done { opacity: 0; pointer-events: none; }
+	#boot h1 { font-size: 15px; font-weight: 600; letter-spacing: .34em; color: #d9ecf4; }
+	#boot-stage { font-size: 11px; color: #7ea6ba; letter-spacing: .04em; min-height: 14px; text-align: center; }
+	#boot-bar { position: relative; width: 260px; height: 2px; background: rgba(160,200,220,.16); overflow: hidden; }
+	#boot-bar i { display: block; height: 100%; width: 0; background: #7fc0e2; transition: width .28s ease; }
+	#boot-bar::after {
+		content: ''; position: absolute; inset: 0; width: 40%;
+		background: linear-gradient(90deg, transparent, rgba(127,192,226,.85), transparent);
+		animation: boot-sweep 1.25s ease-in-out infinite; will-change: transform;
+	}
+	@keyframes boot-sweep { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+	#tier-tag { font-size: 10px; color: #5d8296; letter-spacing: .08em; }
+
+	/* translucent glass debug panel, same language as desktop */
+	.lil-gui {
+		--background-color: rgba(9, 18, 25, 0.42);
+		--title-background-color: rgba(12, 24, 33, 0.5);
+		--widget-color: rgba(255, 255, 255, 0.09);
+		--hover-color: rgba(255, 255, 255, 0.16);
+		--focus-color: rgba(255, 255, 255, 0.22);
+		--number-color: #85cbe6;
+		--text-color: #d5e6ee;
+		--title-text-color: #e6f2f8;
+	}
+	.lil-gui.root { backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1); }
+	.lil-gui.root > .children { background: transparent; }
+
+	/* landscape phones: joystick and buttons share the bottom row more gently */
+	@media (max-height: 480px) {
+		#joy { width: 104px; height: 104px; }
+		.abtn { width: 52px; height: 52px; }
+		#hud { bottom: calc(100px + var(--safe-b)); }
+	}
+
+	/* ---- album-demo skin: gold on black, grain, vignette ---- */
+	body { background: #050308; }
+	#title h1 { color: #ffd166; letter-spacing: .22em; }
+	#title p { color: #8f7bb5; }
+	#hud { color: #b79ae0; }
+	.abtn { border-color: rgba(255,209,102,.45) !important; color: #ffd166 !important;
+		background: rgba(20,10,26,.55) !important; }
+	#joy { border-color: rgba(176,38,255,.4); }
+	#joy-knob { background: rgba(255,209,102,.75) !important; }
+
+	/* film grain + vignette over the render — pure CSS, zero GPU cost */
+	#overlay { position: fixed; inset: 0; z-index: 40; pointer-events: none;
+		background:
+			radial-gradient(ellipse at center, transparent 52%, rgba(2,0,6,.55) 100%);
+	}
+	#overlay::before { content: ''; position: absolute; inset: -100px; opacity: .07;
+		background-image: repeating-conic-gradient(#fff 0 .0001%, #000 0 .0002%);
+		background-size: 170px 170px; animation: grain .42s steps(4) infinite;
+	}
+	@keyframes grain { 0%{transform:translate(0,0)} 25%{transform:translate(-40px,30px)}
+		50%{transform:translate(30px,-45px)} 75%{transform:translate(-25px,-30px)} 100%{transform:translate(0,0)} }
+
+	/* ---- now-playing HUD ---- */
+	#np-hud { position: fixed; top: calc(10px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+		z-index: 45; display: flex; gap: 10px; align-items: center;
+		padding: 7px 12px; border-radius: 20px; background: rgba(8,3,14,.72);
+		border: 1px solid rgba(176,38,255,.5); font-size: 10px; letter-spacing: .1em;
+		color: #e8d9ff; text-shadow: 0 1px 3px #000; }
+	.np-state { color: #b026ff; font-weight: 700; }
+	.np-title { color: #ffd166; }
+	#np-hud button { pointer-events: auto; background: none; border: 1px solid rgba(255,209,102,.5);
+		color: #ffd166; border-radius: 12px; padding: 3px 9px; font: inherit; letter-spacing: .1em; }
+
+	/* VU strip under the hud */
+	#vuflo { position: fixed; top: calc(44px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+		z-index: 45; width: 140px; height: 3px; border-radius: 2px; overflow: hidden;
+		background: rgba(255,255,255,.08); }
+	#vuflo::after { content: ''; display: block; height: 100%; width: var(--vu, 0%);
+		background: linear-gradient(90deg, #b026ff, #ffd166); transition: width .09s linear; }
+
+	/* ---- secret pad ---- */
+	#pad { position: fixed; left: 50%; bottom: calc(190px + var(--safe-b)); transform: translateX(-50%) translateY(24px);
+		z-index: 46; padding: 14px 16px 12px; border-radius: 14px; background: rgba(6,2,12,.88);
+		border: 1px solid rgba(176,38,255,.6); opacity: 0; pointer-events: none;
+		transition: opacity .3s ease, transform .3s ease; }
+	#pad.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+	#pad.unlocked { border-color: #ffd166; box-shadow: 0 0 34px rgba(255,209,102,.55); }
+	#pad-close { position: absolute; top: 4px; right: 8px; background: none; border: none;
+		color: #8f7bb5; font-size: 13px; }
+	.pad-row { display: flex; gap: 10px; margin-top: 8px; }
+	.pad-key { width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255,209,102,.55);
+		background: radial-gradient(circle at 35% 30%, rgba(176,38,255,.35), rgba(10,4,18,.9));
+		color: #ffd166; font: inherit; font-size: 12px; letter-spacing: .05em; }
+	.pad-key.hit { background: radial-gradient(circle at 35% 30%, rgba(255,209,102,.8), rgba(176,38,255,.5));
+		color: #12041f; }
+</style>
+</head>
+<body>
+
+<div id="title">
+	<h1>World</h1>
+	<p id="mobile-hint">left thumb walk · right thumb look · edge = run</p>
+</div>
+<div id="hud">booting…</div>
+<div id="prompt"></div>
+
+<div id="joy"><div id="joy-label">MOVE</div><div id="joy-knob"></div></div>
+<div id="look-ring"></div>
+
+<div class="btns">
+	<button class="abtn" id="btn-jump">JUMP</button>
+	<button class="abtn" id="btn-door">DOOR</button>
+	<button class="abtn small" id="btn-cheer">CHEER</button>
+	<button class="abtn small" id="btn-view">VIEW</button>
+</div>
+<button id="panel-btn" title="world panel">≡</button>
+
+<div id="overlay"></div>
+
+<div id="boot">
+	<h1>WORLD</h1>
+	<div id="boot-stage">starting…</div>
+	<div id="boot-bar"><i></i></div>
+	<div id="tier-tag"></div>
+</div>
+
+
+<div id="np-hud"><span class="np-state">IDLE</span><span class="np-title">—</span>
+<button id="np-play">PLAY</button><button id="np-next">SKIP</button></div>
+<div id="vuflo"></div>
+<div id="pad"><button id="pad-close">&#10005;</button>
+<div class="pad-row">
+<button class="pad-key">C</button><button class="pad-key">D</button><button class="pad-key">E</button><button class="pad-key">G</button><button class="pad-key">A</button>
+</div></div>
+
+<script type="importmap">
+{
+	"imports": {
+		"three": "./vendor/three.webgpu.min.js",
+		"three/webgpu": "./vendor/three.webgpu.min.js",
+		"three/tsl": "./vendor/three.tsl.min.js",
+		"lil-gui": "./vendor/lil-gui.esm.min.js"
+	}
+}
+</script>
+<script type="module" src="./mobile/main.js"></script>
+
+</body>
+</html>

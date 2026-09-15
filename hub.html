@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Building</title>
+<style>
+	:root { color-scheme: dark; }
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body {
+		min-height: 100vh; background: #070b0e; color: #d7e3e8;
+		font-family: ui-monospace, "SF Mono", Menlo, monospace;
+		display: grid; place-content: center; padding: 48px 24px;
+	}
+	header { margin-bottom: 40px; }
+	h1 { font-size: 20px; letter-spacing: .22em; text-transform: uppercase; font-weight: 600; }
+	header p { margin-top: 8px; font-size: 12px; color: #7d97a3; line-height: 1.7; max-width: 560px; }
+
+	.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 280px)); gap: 16px; }
+
+	.card {
+		display: block; text-decoration: none; color: inherit;
+		border: 1px solid #1c2b33; border-radius: 10px; padding: 20px 22px;
+		background: linear-gradient(160deg, #0b1319, #080d11);
+		transition: border-color .15s, transform .15s;
+	}
+	a.card:hover { border-color: #3d6478; transform: translateY(-2px); }
+	.card h2 { font-size: 14px; letter-spacing: .1em; text-transform: uppercase; }
+	.card .tag { font-size: 10px; color: #6fb3d2; letter-spacing: .08em; margin-top: 4px; }
+	.card p { margin-top: 10px; font-size: 11.5px; line-height: 1.75; color: #8aa4b0; }
+
+	.card.soon { opacity: .45; pointer-events: none; }
+	.note { margin-top: 36px; font-size: 11px; color: #5d7480; line-height: 1.8; }
+	.note code { color: #9fc3d4; }
+</style>
+</head>
+<body>
+<template id="app-layout">
+
+<header>
+	<h1>World Building — Scenes</h1>
+	<p>Natural scenes as real GPU techniques — Three.js WebGPURenderer + TSL,
+	compute-driven, no build step. Each scene is an independent folder with its
+	own README stating the algorithm and measured frame cost. The composed
+	world lives at the <a href="./index.html" style="color:#a8d6ea">main page</a>.</p>
+</header>
+
+<div class="grid">
+	<a class="card" href="./index.html">
+		<h2>World</h2>
+		<div class="tag">ocean + land + sky · composed</div>
+		<p>The actual world: the day-night atmosphere is always on, the FFT ocean
+		and the landmass — eroded massifs, meadows, beaches, palm groves — are layers
+		you can combine or view alone. Walk the coast, watch the sun set over
+		the water.</p>
+	</a>
+
+	<a class="card" href="./ocean/index.html">
+		<h2>Ocean</h2>
+		<div class="tag">spectral FFT · 3 cascades · compute</div>
+		<p>Inverse-FFT water: a JONSWAP + TMA wind sea under a 280 m swell on a
+		1 km patch — long enough for real wave groups — Stockham butterflies on the
+		GPU, Jacobian whitecaps with persistent foam, Beer–Lambert depth colour and subsurface
+		scatter. FFT correctness gate before first pixel.</p>
+	</a>
+
+	<a class="card" href="./grass/index.html">
+		<h2>Grass</h2>
+		<div class="tag">1,048,576 blades · indirect draws</div>
+		<p>GPU-driven field: two compute dispatches cull, thin, trample and blow a
+		million generated blades into three indirect LOD draws — the CPU never
+		learns the count. Walk through it; it bends and heals.</p>
+	</a>
+
+	<a class="card" href="./sky/index.html">
+		<h2>Sky</h2>
+		<div class="tag">day-night · sun · moon · stars</div>
+		<p>Ray-marched Rayleigh+Mie atmosphere on a mirror lake. Drag one hour
+		slider through the whole cycle — the moon is a sphere lit by the actual
+		sun, so its phase and terminator are geometry, not paint.</p>
+	</a>
+
+	<div class="card soon">
+		<h2>Next…</h2>
+		<div class="tag">clouds · rivers · mountains</div>
+		<p>Further scenes land here, one folder each, then join the world.</p>
+	</div>
+</div>
+
+<p class="note">Needs a WebGPU browser (Chrome / Edge 113+, Safari 18+).
+Serve this folder statically — e.g. <code>python3 -m http.server 8093</code> — and open the scene pages.</p>
+
+</template>
+<div id="root"></div>
+<script type="module" src="/src/hub.jsx"></script>
+</body>
+</html>
