@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grass — One Million Blades</title>
+<style>
+	:root { color-scheme: dark; }
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	html, body { height: 100%; overflow: hidden; background: #10160c; }
+	body { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+	canvas { display: block; }
+
+	#hud {
+		position: fixed; left: 14px; bottom: 12px; z-index: 5;
+		font-size: 11px; line-height: 1.7; color: #cfe0b8;
+		text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none;
+		white-space: nowrap;
+	}
+	#title {
+		position: fixed; left: 14px; top: 12px; z-index: 5; pointer-events: none;
+		color: #eef4e2; text-shadow: 0 1px 4px rgba(0,0,0,.6);
+	}
+	#title h1 { font-size: 14px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+	#title p { font-size: 11px; color: #a8bb8d; margin-top: 3px; }
+	#title a { color: #cde3a8; text-decoration: none; }
+
+	#overlay {
+		position: fixed; inset: 0; z-index: 10; display: none;
+		place-content: center; text-align: center; gap: 10px;
+		background: rgba(10, 14, 6, .94); color: #e2eecf; padding: 40px;
+	}
+	#overlay h1 { font-size: 18px; letter-spacing: .08em; }
+	#overlay p { font-size: 12px; line-height: 1.8; color: #aec394; max-width: 640px; }
+
+	/* translucent glass debug panel */
+	.lil-gui {
+		--background-color: rgba(12, 18, 9, 0.42);
+		--title-background-color: rgba(16, 24, 12, 0.5);
+		--widget-color: rgba(255, 255, 255, 0.09);
+		--hover-color: rgba(255, 255, 255, 0.16);
+		--focus-color: rgba(255, 255, 255, 0.22);
+		--number-color: #b9dc8a;
+		--text-color: #dcead0;
+		--title-text-color: #edf5e4;
+	}
+	.lil-gui.root { backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1); }
+	.lil-gui.root > .children { background: transparent; }
+</style>
+</head>
+<body>
+<template id="app-layout">
+
+<div id="title">
+	<h1>Grass</h1>
+	<p>1,048,576 GPU-driven blades · <a href="../index.html">world-building</a></p>
+	<p>WASD move · shift sprint · space jump · drag to orbit</p>
+</div>
+<div id="hud">booting…</div>
+<div id="overlay"></div>
+
+<script type="importmap">
+{
+	"imports": {
+		"three": "../vendor/three.webgpu.min.js",
+		"three/webgpu": "../vendor/three.webgpu.min.js",
+		"three/tsl": "../vendor/three.tsl.min.js",
+		"lil-gui": "../vendor/lil-gui.esm.min.js"
+	}
+}
+</script>
+</template>
+<div id="root"></div>
+<script type="module" src="/src/grass.jsx"></script>
+
+</body>
+</html>
